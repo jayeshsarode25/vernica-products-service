@@ -2,6 +2,7 @@ import mongoose from "mongoose";
 import productModel from "../model/product.model.js";
 import categoryModel from "../model/category.model.js";
 import { uploadImage, uploadVideo } from "../services/imagekit.services.js";
+import { logDbResult, logRequest } from "../utils/logging.utils.js";
 import { AppError, catchAsync } from "../utils/error.utils.js"; // ✅
 
 // ── shared sort builder ────────────────────────────────────────────
@@ -19,7 +20,7 @@ const VALID_SUB_CATEGORIES = ["male", "female", "unisex"];
 
 const assertValidSubCategory = (subCategory) => {
   if (!VALID_SUB_CATEGORIES.includes(subCategory)) {
-    throw new AppError("Sub-category must be male, female, or unisex", 400);
+    throw new AppError("Sub-category must be male, female, or unisex", 422);
   }
 };
 
@@ -47,6 +48,8 @@ const getExistingProductDetails = (product) =>
 // CREATE PRODUCT
 // ─────────────────────────────────────────────────────────────────
 export const createProduct = catchAsync(async (req, res) => {
+  logRequest(req, { handler: "createProduct" });
+
   const {
     title,
     tagline = "",
@@ -64,14 +67,18 @@ export const createProduct = catchAsync(async (req, res) => {
   assertValidSubCategory(normalizedSubCategory);
 
   if (!categoryId) {
-    throw new AppError("Category ID is required", 400);
+    throw new AppError("Category ID is required", 422);
   }
 
   if (!mongoose.Types.ObjectId.isValid(categoryId)) {
-    throw new AppError("Invalid Category ID", 400);
+    throw new AppError("Invalid Category ID", 422);
   }
 
   const categoryExists = await categoryModel.findById(categoryId);
+  logDbResult(req, "categoryModel.findById", {
+    categoryId,
+    found: Boolean(categoryExists),
+  });
   if (!categoryExists) {
     throw new AppError("Category not found", 404);
   }
@@ -107,6 +114,11 @@ export const createProduct = catchAsync(async (req, res) => {
     categoryId, subCategory: normalizedSubCategory, rating, stock, size,
     productDetails: buildProductDetails(req.body, true),
   });
+  logDbResult(req, "productModel.create", {
+    productId: product._id,
+    title: product.title,
+    categoryId: product.categoryId,
+  });
 
   // update category product count
   await categoryModel.findByIdAndUpdate(categoryId, { $inc: { productCount: 1 } }, { new: true });
@@ -120,17 +132,22 @@ export const createProduct = catchAsync(async (req, res) => {
 // UPDATE PRODUCT
 // ─────────────────────────────────────────────────────────────────
 export const updateProduct = catchAsync(async (req, res) => {
+  logRequest(req, { handler: "updateProduct" });
   const { id } = req.params;
 
   if (!req.body || Object.keys(req.body).length === 0) {
-    throw new AppError("No update data provided", 400);
+    throw new AppError("No update data provided", 422);
   }
 
   if (!mongoose.Types.ObjectId.isValid(id)) {
-    throw new AppError("Invalid Product ID", 400);
+    throw new AppError("Invalid Product ID", 422);
   }
 
   const product = await productModel.findById(id);
+  logDbResult(req, "productModel.findById", {
+    productId: id,
+    found: Boolean(product),
+  });
   if (!product) {
     throw new AppError("Product not found", 404);
   }
@@ -161,9 +178,13 @@ export const updateProduct = catchAsync(async (req, res) => {
 
     if (key === "categoryId") {
       if (!mongoose.Types.ObjectId.isValid(req.body.categoryId)) {
-        throw new AppError("Invalid Category ID", 400);
+        throw new AppError("Invalid Category ID", 422);
       }
       const newCategory = await categoryModel.findById(req.body.categoryId);
+      logDbResult(req, "categoryModel.findById", {
+        categoryId: req.body.categoryId,
+        found: Boolean(newCategory),
+      });
       if (!newCategory) {
         throw new AppError("New category not found", 404);
       }
@@ -209,13 +230,18 @@ export const updateProduct = catchAsync(async (req, res) => {
 // DELETE PRODUCT
 // ─────────────────────────────────────────────────────────────────
 export const deleteProduct = catchAsync(async (req, res) => {
+  logRequest(req, { handler: "deleteProduct" });
   const { id } = req.params;
 
   if (!mongoose.Types.ObjectId.isValid(id)) {
-    throw new AppError("Invalid Product ID", 400);
+    throw new AppError("Invalid Product ID", 422);
   }
 
   const product = await productModel.findByIdAndDelete(id);
+  logDbResult(req, "productModel.findByIdAndDelete", {
+    productId: id,
+    found: Boolean(product),
+  });
   if (!product) {
     throw new AppError("Product not found", 404);
   }
@@ -233,6 +259,7 @@ export const deleteProduct = catchAsync(async (req, res) => {
 // GET PRODUCTS (with filters + pagination)
 // ─────────────────────────────────────────────────────────────────
 export const getProduct = catchAsync(async (req, res) => {
+  logRequest(req, { handler: "getProduct" });
   const { q, skip = 0, limit = 10, categoryId, categorySlug, subCategory } = req.query;
 
   const minPriceRaw = req.query.minprice ?? req.query.minPrice;
@@ -254,13 +281,17 @@ export const getProduct = catchAsync(async (req, res) => {
 
   if (categoryId) {
     if (!mongoose.Types.ObjectId.isValid(categoryId)) {
-      throw new AppError("Invalid Category ID", 400);
+      throw new AppError("Invalid Category ID", 422);
     }
     filter.categoryId = new mongoose.Types.ObjectId(categoryId);
   }
 
   if (categorySlug) {
     const category = await categoryModel.findOne({ slug: categorySlug, isActive: true });
+    logDbResult(req, "categoryModel.findOne", {
+      slug: categorySlug,
+      found: Boolean(category),
+    });
     if (category) filter.categoryId = category._id;
   }
 
@@ -282,6 +313,12 @@ export const getProduct = catchAsync(async (req, res) => {
     productModel.countDocuments(filter),
   ]);
 
+  logDbResult(req, "productModel.find/countDocuments", {
+    filter,
+    returned: products.length,
+    totalCount,
+  });
+
   res.status(200).json({
     message: "Products fetched successfully",
     pagination: { skip: Number(skip), limit: safeLimit, total: totalCount },
@@ -293,15 +330,23 @@ export const getProduct = catchAsync(async (req, res) => {
 // GET PRODUCT BY ID
 // ─────────────────────────────────────────────────────────────────
 export const getProductById = catchAsync(async (req, res) => {
+  logRequest(req, { handler: "getProductById" });
   const { id } = req.params;
 
   if (!mongoose.Types.ObjectId.isValid(id)) {
-    throw new AppError("Invalid Product ID", 400);
+    throw new AppError("Invalid Product ID", 422);
   }
 
   const product = await productModel
     .findById(id)
     .populate("categoryId", "name slug description");
+
+  logDbResult(req, "productModel.findById", {
+    productId: id,
+    found: Boolean(product),
+    isActive: product?.isActive,
+    title: product?.title,
+  });
 
   if (!product) {
     throw new AppError("Product not found", 404);
@@ -314,6 +359,7 @@ export const getProductById = catchAsync(async (req, res) => {
 // GET PRODUCT COUNT (admin)
 // ─────────────────────────────────────────────────────────────────
 export const getProductCount = catchAsync(async (req, res) => {
+  logRequest(req, { handler: "getProductCount" });
   const [totalProducts, countByCategory, countBySubCategory] = await Promise.all([
     productModel.countDocuments({ isActive: true }),
     productModel.aggregate([
@@ -326,6 +372,12 @@ export const getProductCount = catchAsync(async (req, res) => {
       { $group: { _id: "$subCategory", count: { $sum: 1 } } },
     ]),
   ]);
+
+  logDbResult(req, "product count aggregates", {
+    totalProducts,
+    categoryBuckets: countByCategory.length,
+    subCategoryBuckets: countBySubCategory.length,
+  });
 
   res.json({
     totalProducts,
@@ -345,14 +397,19 @@ export const getProductCount = catchAsync(async (req, res) => {
 // GET PRODUCTS BY CATEGORY ID
 // ─────────────────────────────────────────────────────────────────
 export const getProductsByCategory = catchAsync(async (req, res) => {
+  logRequest(req, { handler: "getProductsByCategory" });
   const { categoryId }              = req.params;
   const { skip = 0, limit = 12, sort = "newest", subCategory } = req.query;
 
   if (!mongoose.Types.ObjectId.isValid(categoryId)) {
-    throw new AppError("Invalid Category ID", 400);
+    throw new AppError("Invalid Category ID", 422);
   }
 
   const category = await categoryModel.findById(categoryId);
+  logDbResult(req, "categoryModel.findById", {
+    categoryId,
+    found: Boolean(category),
+  });
   if (!category) {
     throw new AppError("Category not found", 404);
   }
@@ -376,6 +433,12 @@ export const getProductsByCategory = catchAsync(async (req, res) => {
     productModel.countDocuments(filter),
   ]);
 
+  logDbResult(req, "productModel.find/countDocuments", {
+    filter,
+    returned: products.length,
+    totalCount,
+  });
+
   res.json({
     message:  "Products retrieved successfully",
     category: { id: category._id, name: category.name, slug: category.slug, description: category.description },
@@ -388,10 +451,15 @@ export const getProductsByCategory = catchAsync(async (req, res) => {
 // GET PRODUCTS BY CATEGORY SLUG
 // ─────────────────────────────────────────────────────────────────
 export const getProductsByCategorySlug = catchAsync(async (req, res) => {
+  logRequest(req, { handler: "getProductsByCategorySlug" });
   const { slug }                    = req.params;
   const { skip = 0, limit = 12, sort = "newest", subCategory } = req.query;
 
   const category = await categoryModel.findOne({ slug, isActive: true });
+  logDbResult(req, "categoryModel.findOne", {
+    slug,
+    found: Boolean(category),
+  });
   if (!category) {
     throw new AppError("Category not found", 404);
   }
@@ -414,6 +482,12 @@ export const getProductsByCategorySlug = catchAsync(async (req, res) => {
       .limit(safeLimit),
     productModel.countDocuments(filter),
   ]);
+
+  logDbResult(req, "productModel.find/countDocuments", {
+    filter,
+    returned: products.length,
+    totalCount,
+  });
 
   res.json({
     message:  "Products retrieved successfully",

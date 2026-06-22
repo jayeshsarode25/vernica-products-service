@@ -1,5 +1,6 @@
 import { body, validationResult } from "express-validator";
 import categoryModel from "../model/category.model.js";
+import { logValidationErrors } from "../utils/logging.utils.js";
 
 const handleValidationErrors = (req, res, next) => {
   const errors = validationResult(req);
@@ -10,7 +11,9 @@ const handleValidationErrors = (req, res, next) => {
       message: err.msg,
     }));
 
-    return res.status(400).json({
+    logValidationErrors(req, formattedErrors);
+
+    return res.status(422).json({
       success: false,
       message: `Validation error: ${formattedErrors
         .map((err) => `${err.field}: ${err.message}`)

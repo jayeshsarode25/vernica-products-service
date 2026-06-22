@@ -10,7 +10,11 @@ import { globalErrorHandler } from "./utils/error.utils.js";
 const app = express();
 app.set("trust proxy", 1);
 
-const allowedOrigins = (process.env.FRONTEND_URL || "http://localhost:5173")
+const allowedOrigins = (
+  process.env.FRONTEND_URLS ||
+  process.env.FRONTEND_URL ||
+  "http://localhost:5173,https://varnikaorganics.com,https://www.varnikaorganics.com"
+)
   .split(",")
   .map((origin) => origin.trim())
   .filter(Boolean);
@@ -19,9 +23,13 @@ app.use(
   cors({
     origin(origin, callback) {
       if (!origin || allowedOrigins.includes(origin)) return callback(null, true);
+      console.warn("[products] CORS blocked origin", { origin, allowedOrigins });
       return callback(new Error(`CORS blocked origin: ${origin}`));
     },
     credentials: true,
+    methods: ["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization"],
+    optionsSuccessStatus: 200,
   }),
 );
 

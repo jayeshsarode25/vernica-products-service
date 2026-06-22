@@ -45,13 +45,24 @@ export const globalErrorHandler = (err, req, res, next) => {
 
   // CastError — invalid ObjectId e.g. /api/products/not-an-id
   if (err.name === "CastError") {
-    return res.status(400).json({ message: `Invalid ${err.path}: ${err.value}` });
+    return res.status(422).json({
+      success: false,
+      message: `Validation error: invalid ${err.path}`,
+      errors: [{ field: err.path, message: `Invalid value: ${err.value}` }],
+    });
   }
 
   // ValidationError — mongoose schema validation failed
   if (err.name === "ValidationError") {
-    const messages = Object.values(err.errors).map((e) => e.message);
-    return res.status(400).json({ message: messages.join(", ") });
+    const errors = Object.values(err.errors).map((e) => ({
+      field: e.path,
+      message: e.message,
+    }));
+    return res.status(422).json({
+      success: false,
+      message: `Validation error: ${errors.map((e) => `${e.field}: ${e.message}`).join(", ")}`,
+      errors,
+    });
   }
 
   // Duplicate key error — e.g. email already exists
