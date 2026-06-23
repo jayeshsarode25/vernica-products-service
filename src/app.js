@@ -10,28 +10,26 @@ import { globalErrorHandler } from "./utils/error.utils.js";
 const app = express();
 app.set("trust proxy", 1);
 
-const allowedOrigins = (
-  process.env.FRONTEND_URLS ||
-  process.env.FRONTEND_URL ||
-  "http://localhost:5173,https://varnikaorganics.com,https://www.varnikaorganics.com,https://darkseagreen-dugong-645308.hostingersite.com"
-)
-  .split(",")
-  .map((origin) => origin.trim())
-  .filter(Boolean);
+const allowedOrigins = process.env.ALLOWED_ORIGINS?.split(",") || [
+  "https://varnikaorganics.com",
+  "http://localhost:5173",
+];
 
-app.use(
-  cors({
-    origin(origin, callback) {
-      if (!origin || allowedOrigins.includes(origin)) return callback(null, true);
-      console.warn("[products] CORS blocked origin", { origin, allowedOrigins });
-      return callback(new Error(`CORS blocked origin: ${origin}`));
-    },
-    credentials: true,
-    methods: ["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
-    allowedHeaders: ["Content-Type", "Authorization"],
-    optionsSuccessStatus: 200,
-  }),
-);
+const corsOptions = {
+  origin: function (origin, callback) {
+    if (!origin || allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      callback(new Error("CORS blocked origin: " + origin));
+    }
+  },
+  credentials: true,
+  methods: ["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "Authorization"],
+  optionsSuccessStatus: 200,
+};
+
+app.use(cors(corsOptions));
 
 // ✅ INCREASE REQUEST SIZE LIMIT (ADD THIS - BEFORE OTHER MIDDLEWARE)
 app.use(express.json({ limit: '50mb' }));
