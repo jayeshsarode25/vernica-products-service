@@ -5,6 +5,7 @@ import productRoutes from "./routes/product.route.js";
 import categoryRoute from "./routes/Category.routes.js";
 import blogRoutes from './routes/blog.routes.js';
 import { applySecurityMiddleware } from "./middleware/Security.middleware .js";
+import { authMiddleware } from "./middleware/auth.middleware.js";
 import { globalErrorHandler } from "./utils/error.utils.js"; 
 
 const app = express();
@@ -61,6 +62,7 @@ app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
 app.use(cookieParser());
+app.use(authMiddleware);
 applySecurityMiddleware(app);
 
 app.get("/", (req, res) => {

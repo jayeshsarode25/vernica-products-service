@@ -1,6 +1,4 @@
 import jwt from "jsonwebtoken";
-import config from "../config/config.js";
-import { getAuthState } from "../utils/logging.utils.js";
 
 function getBearerToken(req) {
   const authHeader = req.headers?.authorization;
@@ -12,59 +10,70 @@ function getBearerToken(req) {
   return token;
 }
 
-function createAuthMiddleware(role = ["user"]) {
-  return function authMiddleware(req, res, next) {
-    const cookieToken = req.cookies?.token;
-    const token = cookieToken || getBearerToken(req);
+export function authMiddleware(req, _res, next) {
+  const cookieToken = req.cookies?.token;
+  const token = cookieToken || getBearerToken(req);
 
-    console.info("[products] auth check", {
-      method: req.method,
-      url: req.originalUrl,
-      requiredRoles: role,
-      auth: getAuthState(req),
-    });
+  if (!token) {
+    req.auth = {
+      hasTokenCookie: false,
+      authenticated: false,
+    };
+    return next();
+  }
 
-    if (!token) {
-      console.warn("[products] auth rejected: no token", {
+  try {
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const userId = decoded.userId ?? decoded.id ?? decoded._id;
+
+    req.auth = {
+      hasTokenCookie: Boolean(cookieToken),
+      userId,
+      role: decoded.role,
+      authenticated: true,
+    };
+    req.user = { ...decoded, userId, id: userId, role: decoded.role };
+
+    if (decoded.role === "admin") {
+      console.info("[products] authenticated request", {
         method: req.method,
-        url: req.originalUrl,
-        requiredRoles: role,
-      });
-      return res.status(401).json({ message: "No token provided" });
-    }
-
-    try {
-      const decoded = jwt.verify(token, process.env.JWT_SECRET);
-      const userId = decoded.userId ?? decoded.id ?? decoded._id;
-      const auth = {
-        hasTokenCookie: Boolean(cookieToken),
+        path: req.originalUrl,
         userId,
         role: decoded.role,
-        authenticated: Boolean(decoded),
-      };
+      });
+    }
+  } catch (error) {
+    req.auth = {
+      hasTokenCookie: Boolean(cookieToken),
+      authenticated: false,
+      error: error.name,
+    };
+    req.user = undefined;
+  }
 
-      if (!role.includes(auth.role)) {
-        console.warn("[products] auth rejected: insufficient role", {
-          method: req.method,
-          url: req.originalUrl,
-          requiredRoles: role,
-          userId: auth.userId,
-          role: auth.role,
-        });
-        return res.status(403).json({ message: "Forbidden" });
-      }
+  return next();
+}
 
-      req.auth = auth;
-      req.user = { ...decoded, userId: auth.userId, id: auth.userId, role: auth.role };
-      next();
-    } catch (error) {
-      console.warn("[products] auth rejected: invalid token", {
+function createAuthMiddleware(roles = ["user"]) {
+  return function requireRole(req, res, next) {
+    if (!req.auth?.authenticated) {
+      return res.status(401).json({
+        message: req.auth?.error ? "Invalid token" : "No token provided",
+      });
+    }
+
+    if (!roles.includes(req.auth.role)) {
+      console.warn("[products] auth rejected: insufficient role", {
         method: req.method,
         url: req.originalUrl,
-        error: error.name,
+        requiredRoles: roles,
+        userId: req.auth.userId,
+        role: req.auth.role,
       });
-      return res.status(401).json({ message: "Invalid token" });
+      return res.status(403).json({ message: "Forbidden" });
     }
+
+    return next();
   };
 }
 
