@@ -34,17 +34,26 @@ function createAuthMiddleware(role = ["user"]) {
 
     try {
       const decoded = jwt.verify(token, config.JWT_SECRET);
-      if (!role.includes(decoded.role)) {
+      const userId = decoded.userId ?? decoded.id ?? decoded._id;
+      const auth = {
+        userId,
+        role: decoded.role,
+        authenticated: true,
+      };
+
+      if (!role.includes(auth.role)) {
         console.warn("[products] auth rejected: insufficient role", {
           method: req.method,
           url: req.originalUrl,
           requiredRoles: role,
-          userId: decoded.userId ?? decoded.id,
-          role: decoded.role,
+          userId: auth.userId,
+          role: auth.role,
         });
         return res.status(403).json({ message: "Forbidden" });
       }
-      req.user = decoded;
+
+      req.auth = auth;
+      req.user = { ...decoded, userId: auth.userId, id: auth.userId, role: auth.role };
       next();
     } catch (error) {
       console.warn("[products] auth rejected: invalid token", {

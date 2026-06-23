@@ -37,9 +37,9 @@ export const redactObject = (value = {}) =>
 export const getAuthState = (req) => ({
   hasTokenCookie: Boolean(req.cookies?.token),
   hasAuthorizationHeader: Boolean(req.headers?.authorization),
-  userId: req.user?.userId ?? req.user?.id,
-  role: req.user?.role,
-  authenticated: Boolean(req.user),
+  userId: req.auth?.userId ?? req.user?.userId ?? req.user?.id,
+  role: req.auth?.role ?? req.user?.role,
+  authenticated: Boolean(req.auth?.authenticated ?? req.user),
 });
 
 export const logRequest = (req, extra = {}) => {
