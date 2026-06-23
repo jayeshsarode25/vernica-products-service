@@ -13,7 +13,7 @@ app.set("trust proxy", 1);
 const allowedOrigins = (
   process.env.FRONTEND_URLS ||
   process.env.FRONTEND_URL ||
-  "http://localhost:5173,https://varnikaorganics.com,https://www.varnikaorganics.com"
+  "http://localhost:5173,https://varnikaorganics.com,https://www.varnikaorganics.com,https://darkseagreen-dugong-645308.hostingersite.com"
 )
   .split(",")
   .map((origin) => origin.trim())
