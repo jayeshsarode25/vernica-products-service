@@ -8,6 +8,7 @@ dotenvconfig();
 const REQUIRED_VARS = [
   "MONGO_URI",
   "JWT_SECRET",
+  "COOKIE_DOMAIN",
   "IMAGEKIT_PUBLIC_KEY",
   "IMAGEKIT_PRIVATE_KEY",
   "IMAGEKIT_URL",
@@ -25,6 +26,7 @@ if (missing.length > 0) {
 const _config = {
   MONGO_URI:            process.env.MONGO_URI,
   JWT_SECRET:           process.env.JWT_SECRET,
+  COOKIE_DOMAIN:        process.env.COOKIE_DOMAIN,
   IMAGEKIT_PUBLIC_KEY:  process.env.IMAGEKIT_PUBLIC_KEY,
   IMAGEKIT_PRIVATE_KEY: process.env.IMAGEKIT_PRIVATE_KEY,
   IMAGEKIT_URL:         process.env.IMAGEKIT_URL,
