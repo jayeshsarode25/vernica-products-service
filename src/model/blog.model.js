@@ -13,6 +13,7 @@ const blogSchema = new mongoose.Schema(
     slug: {
       type: String,
       unique: true,
+      index: true,
       lowercase: true,
       trim: true,
     },
@@ -100,7 +101,6 @@ const blogSchema = new mongoose.Schema(
 );
 
 // ✅ Indexes for faster queries
-blogSchema.index({ slug: 1 });
 blogSchema.index({ isPublished: 1 });
 blogSchema.index({ category: 1 });
 blogSchema.index({ createdAt: -1 });

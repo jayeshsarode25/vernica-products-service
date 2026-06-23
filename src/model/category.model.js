@@ -17,6 +17,7 @@ const categorySchema = new mongoose.Schema(
     slug: {
       type: String,
       unique: true,
+      index: true,
       lowercase: true,
       trim: true,
     },
@@ -58,7 +59,6 @@ const categorySchema = new mongoose.Schema(
 );
 
 // Indexes for faster queries
-categorySchema.index({ slug: 1 });
 categorySchema.index({ isActive: 1 });
 
 const categoryModel = mongoose.model("category", categorySchema);
